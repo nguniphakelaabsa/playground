@@ -1,1 +1,10 @@
-https://gist.github.com/nguniphakelaabsa/6910ab46ed0114ae9244b5d91707ce32
+working requests
+
+{
+    "api_user": "aao_umeme",
+    "api_key": "xxx",
+    "method": "verify",
+    "data": {
+        "customer_ref": "14353074561" // prepaid - 14353074561 ()postpaid - 102024222196 --- work request - E10062024111002
+    }
+}
