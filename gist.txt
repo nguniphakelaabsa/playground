@@ -8,3 +8,19 @@ working requests
         "customer_ref": "14353074561" // prepaid - 14353074561 ()postpaid - 102024222196 --- work request - E10062024111002
     }
 }
+
+RESPONSE:
+
+{
+    "status_code": "200",
+    "status_desc": "success",
+    "data": {
+        "CustomerRef": "14353074561",
+        "CustomerName": "SSENGENDO ANNE MILLY",
+        "CustomerType": "PREPAID",
+        "Balance": "55.75",
+        "StatusCode": "0",
+        "StatuDescription": "SUCCESS",
+        "Credit": "0"
+    }
+}
