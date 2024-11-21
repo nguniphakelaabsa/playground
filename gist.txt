@@ -1,3 +1,928 @@
+Apply Payment
+--- 
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-apply-payment-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property name="bpe-bankingengine-utilities-apply-payment-seq" value="Applay payment sequence started"/>
+    </log>
+    <property expression="json-eval($.comment)" name="comment"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="get-property('SYSTEM_TIME')" name="requestId"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <utilitiesconnector.umemeencrypt/>
+    <log level="custom">
+        <property expression="$ctx:encryptedRequestId"
+            name="bpe-bankingengine-utilities-apply-payment-seq -- Encrypted request ID" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
+    <payloadFactory media-type="json">
+        <format>
+			{
+			    "meterSerial": "$1",
+			    "totalPayment": $2,
+			    "debtPayment": $3,
+			    "account": "$4",
+			    "tariffDescription": "$5",
+			    "percentageDebt": $6,
+			    "accountBalance": $7,
+			    "unitsPayment": $8, 
+			    "units": $9,
+			    "unitsType": "$10",
+			    "comment": "$11",
+			    "requestID":"$12",
+                "phoneNumber": "$13",
+                "digitalSign":"$14"
+			}
+		</format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:meterSerial"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:totalPayment"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:debtPayment"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:account"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:tariffDescription"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:percentageDebt"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:accountBalance"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:unitsPayment"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:units" literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:unitsType"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:tariffDescription"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:requestId"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:newPhoneNumber"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:encryptedRequestId"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+        </args>
+    </payloadFactory>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property
+        expression="fn:concat($ctx:umemeBaseUrl, '/venPayment/1.0.1/')"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+        name="X-Incms-Origin-D" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+        name="Authorization" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <filter regex="200" source="$axis2:HTTP_SC" xmlns:ns="http://org.apache.synapse/xsd">
+        <then>
+            <property expression="json-eval($.data.requestID)"
+                name="requestID" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.alarmMessage)"
+                name="alarmMessage" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.transactionId)"
+                name="transactionId" scope="default" type="STRING"/>
+        </then>
+        <else>
+            <log level="full">
+                <property
+                    name="bpe-bankingengine-utilities-apply-payment-seq" value="failed to apply payment "/>
+            </log>
+            <respond/>
+        </else>
+    </filter>
+</sequence>
+
+---
+
+Calculate Payment
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-calculate-payment-seq"
+    onError="gov:/com/cestasoft/bankingengine/esb/services/bpe-bankingengine-utilities/v1/sequences/bpe-bankingengine-utilities-fault-seq.xml" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property
+            name="bpe-bankingengine-utilities-calculate-payment-seq" value="Calculate sts token sequence started"/>
+    </log>
+    <property expression="json-eval($.data.customer_ref)"
+        name="meterSerial" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="json-eval($.data.amount)" name="totalPayment"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property name="debtPayment" scope="default" type="STRING" value="0"/>
+    <property expression="json-eval($.data.mobile_no)"
+        name="phoneNumber" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <script language="js"><![CDATA[var log = mc.getServiceLog();
+                                var phoneNumber = mc.getProperty('phoneNumber');
+                                // var newPhoneNumber = phoneNumber.replace(/^0/, '256');
+                                var lastPhoneNumberSlice = phoneNumber.slice(1, 10);
+                                var newPhoneNumber = "256" + lastPhoneNumberSlice;
+
+                                log.info(newPhoneNumber);
+                                mc.setProperty('phoneNumber', newPhoneNumber.toString());]]></script>
+    <log level="custom">
+        <property expression="$ctx:phoneNumber" name="phoneNumber" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property
+        expression="fn:concat($ctx:umemeBaseUrl, '/venPayment/1.0.1/?meterSerial=', $ctx:meterSerial, '&amp;totalPayment=', $ctx:totalPayment, '&amp;debtPayment=',$ctx:debtPayment, '&amp;phoneNumber=',$ctx:newPhoneNumber)"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+        name="X-Incms-Origin-D" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+        name="Authorization" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <filter regex="200" source="$axis2:HTTP_SC" xmlns:ns="http://org.apache.synapse/xsd">
+        <then>
+            <log level="full">
+                <property
+                    name="bpe-bankingengine-utilities-calculate-payment-seq" value="Sucesss with calculate payment"/>
+            </log>
+            <property expression="json-eval($.data.account)"
+                name="account" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.tariffDescription)"
+                name="tariffDescription" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.percentageDebt)"
+                name="percentageDebt" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.accountBalance)"
+                name="accountBalance" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.unitsPayment)"
+                name="unitsPayment" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.units)" name="units"
+                scope="default" type="STRING"/>
+            <property name="unitsType" scope="default" type="STRING" value="kWh"/>
+            <property expression="json-eval($.data.percentageDebt)"
+                name="percentageDebt" scope="default" type="STRING"/>
+        </then>
+        <else>
+            <log level="full">
+                <property
+                    name="bpe-bankingengine-utilities-calculate-payment-seq" value="failed to calculate payment "/>
+            </log>
+            <respond/>
+        </else>
+    </filter>
+</sequence>
+
+----
+Customer Search
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-customer-search-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property name="bpe-bankingengine-utilities-customer-search-seq" value="Customer Search sequence started"/>
+    </log>
+    <property expression="json-eval($.data.customer_ref)"
+        name="customerRef" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <log level="custom">
+        <property expression="$ctx:customerRef" name="customerRef" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property
+        expression="fn:concat($ctx:umemeBaseUrl, '/customerDetails/1.0.1/?meterNumber=', $ctx:customerRef)"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+        name="X-Incms-Origin-D" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+        name="Authorization" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <sequence key="bpe-bankingengine-utilities-response-handler-seq"/>
+    <property expression="json-eval($.data.length())" name="dataLength"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <filter xmlns:ns="http://org.apache.synapse/xsd" xpath="get-property('dataLength') > 0">
+        <then>
+            <log level="custom">
+                <property name="DATA_STATUS" value="Data array contains elements"/>
+            </log>
+            <property name="customerType" scope="default" type="STRING" value="PREPAID"/>
+            <sequence key="bpe-bankingengine-utilities-success-response-handler-seq"/>
+        </then>
+        <else>
+            <log level="custom">
+                <property name="DATA_STATUS" value="Data array is empty -- will try Postpaid now"/>
+            </log>
+            <property name="customerType" scope="default" type="STRING" value="POSTPAID"/>
+            <sequence key="bpe-bankingengine-utilities-get-token-seq"/>
+            <property name="HTTP_METHOD" scope="axis2" type="STRING" value="GET"/>
+            <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+            <property name="DISABLE_CHUNKING" scope="axis2"
+                type="STRING" value="true"/>
+            <header
+                expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+                name="X-Incms-Origin-D" scope="transport"/>
+            <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+                name="Authorization" scope="transport"/>
+            <property
+                expression="fn:concat($ctx:umemeBaseUrl, '/customerDetails/1.0.1/?oucAccount=', $ctx:customerRef)"
+                name="uri.var.umemeBillpayUrl" scope="default" type="STRING"/>
+            <call>
+                <endpoint>
+                    <http uri-template="{uri.var.umemeBillpayUrl}">
+                        <timeout>
+                            <duration>120000</duration>
+                            <responseAction>fault</responseAction>
+                        </timeout>
+                        <suspendOnFailure>
+                            <errorCodes>-1</errorCodes>
+                            <initialDuration>0</initialDuration>
+                            <progressionFactor>1.0</progressionFactor>
+                            <maximumDuration>0</maximumDuration>
+                        </suspendOnFailure>
+                        <markForSuspension>
+                            <errorCodes>-1</errorCodes>
+                        </markForSuspension>
+                    </http>
+                </endpoint>
+            </call>
+            <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+            <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+            <sequence key="bpe-bankingengine-utilities-response-handler-seq"/>
+            <property expression="json-eval($.data.length())"
+                name="dataLength" scope="default" type="STRING"/>
+            <filter xpath="get-property('dataLength') > 0">
+                <then>
+                    <log level="custom">
+                        <property name="DATA_STATUS" value="Data array contains elements"/>
+                    </log>
+                    <property name="customerType" scope="default"
+                        type="STRING" value="POSTPAID"/>
+                    <sequence key="bpe-bankingengine-utilities-success-response-handler-seq"/>
+                </then>
+                <else>
+                    <log level="custom">
+                        <property name="DATA_STATUS" value="Data array is empty -- will try WORK REQUEST now"/>
+                    </log>
+                    <property name="HTTP_METHOD" scope="axis2"
+                        type="STRING" value="GET"/>
+                    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+                    <property name="DISABLE_CHUNKING" scope="axis2"
+                        type="STRING" value="true"/>
+                    <property
+                        expression="fn:concat($ctx:umemeBaseUrl, '/customerDetails/1.0.1/?workRequest=', $ctx:customerRef)"
+                        name="uri.var.umemeBillpayUrl" scope="default" type="STRING"/>
+                    <header
+                        expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+                        name="X-Incms-Origin-D" scope="transport"/>
+                    <header
+                        expression="fn:concat('Bearer ', $ctx:accessToken)"
+                        name="Authorization" scope="transport"/>
+                    <call>
+                        <endpoint>
+                            <http uri-template="{uri.var.umemeBillpayUrl}">
+                                <timeout>
+                                    <duration>120000</duration>
+                                    <responseAction>fault</responseAction>
+                                </timeout>
+                                <suspendOnFailure>
+                                    <errorCodes>-1</errorCodes>
+                                    <initialDuration>0</initialDuration>
+                                    <progressionFactor>1.0</progressionFactor>
+                                    <maximumDuration>0</maximumDuration>
+                                </suspendOnFailure>
+                                <markForSuspension>
+                                    <errorCodes>-1</errorCodes>
+                                </markForSuspension>
+                            </http>
+                        </endpoint>
+                    </call>
+                    <property name="ContentType" scope="axis2"
+                        type="STRING" value="application/json"/>
+                    <property name="messageType" scope="axis2"
+                        type="STRING" value="application/json"/>
+                    <sequence key="bpe-bankingengine-utilities-response-handler-seq"/>
+                    <property expression="json-eval($.data.length())"
+                        name="dataLength" scope="default" type="STRING"/>
+                    <filter xpath="get-property('dataLength') > 0">
+                        <then>
+                            <property name="customerType"
+                                scope="default" type="STRING" value="NEWCONNECTION"/>
+                            <sequence key="bpe-bankingengine-utilities-success-response-handler-seq"/>
+                        </then>
+                        <else>
+                            <sequence key="bpe-bankingengine-utilities-process-error-handler-seq"/>
+                        </else>
+                    </filter>
+                </else>
+            </filter>
+        </else>
+    </filter>
+    <log level="custom">
+        <property name="bpe-bankingengine-utilities-customer-search-seq" value="Customer search sequence completed"/>
+    </log>
+    <respond/>
+</sequence>
+
+-----
+Get STS TOken
+----
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-get-sts-token-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property name="bpe-bankingengine-utilities-get-sts-token-seq" value="Get STS Token sequence started"/>
+    </log>
+    <payloadFactory media-type="json">
+        <format>
+			{
+			    "idTransaction": $1
+			}
+		</format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:transactionId"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+        </args>
+    </payloadFactory>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property
+        expression="fn:concat($ctx:umemeBaseUrl, '/stsToken/1.0.1/venStsToken')"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat($ctx:vendorId, '#', $ctx:username)"
+        name="X-Incms-Origin-D" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+        name="Authorization" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <sequence key="bpe-bankingengine-utilities-response-handler-seq"/>
+    <property name="statusCode" scope="default" type="STRING" value="0"/>
+    <payloadFactory media-type="xml">
+        <format>
+            <root xmlns="">
+                <data>$1</data>
+            </root>
+        </format>
+        <args>
+            <arg evaluator="json" expression="$.data[0]" literal="false"/>
+        </args>
+    </payloadFactory>
+    <property name="messageType" scope="axis2" value="application/xml"/>
+    <property expression="//unitsTopUp[concept='VAT']/amount"
+        name="vatAmount" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//debtPayment" name="debtRecovery"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//totalPayment" name="totalAmount"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//oucAccount" name="oucAccount"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//customerName" name="customerName"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//meterSerial" name="meterNumber"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//balance" name="balance" scope="default"
+        type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//type" name="type" scope="default"
+        type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//receipt" name="receiptNumber"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//units[1]" name="units" scope="default"
+        type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//accountBalance" name="remainingCredit"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property
+        expression="//unitsTopUp[concept='Rounding Adjustment']/units"
+        name="tokenValue" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//unitsTopUp[concept='Service Charge']/amount"
+        name="serviceFee" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="//listToken[1]" name="listToken"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <payloadFactory media-type="json">
+        <format>
+            {
+                "statusCode": 200,
+                "statusMessage": "success",
+                "data": {
+                    "accountSaveAmount": null,
+                    "accountPayAmount": null,
+                    "debtRecovery": $10,
+                    "tax": $15,
+                    "totalAmount": $14,
+                    "statusCode": $7,
+                    "units": $11,
+                    "tokenValue": $16,
+                    "remainingCredit": $12,
+                    "serviceFee": $17,
+                    "meterNumber": "$13",
+                    "fX": null,
+                    "inflation": null,
+                    "prepaidToken": "$18",
+                    "receiptNumber": "$9",
+                    "lifeLine": null,
+                    "fuel": 0,
+                    "statusDescription": "$6",
+                    "bankTransactionID": "$8"
+                }
+            }
+        </format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:customerRef"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:customerName"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:customerType"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:balance"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg literal="false" value="0"/>
+            <arg literal="false" value="SUCCESS"/>
+            <arg evaluator="xml" expression="$ctx:statusCode"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:transactionReference"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:receiptNumber"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:debtRecovery"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:units" literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:remainingCredit"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:meterNumber"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:totalAmount"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:vatAmount"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:tokenValue"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:serviceFee"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:listToken"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+        </args>
+    </payloadFactory>
+    <respond/>
+</sequence>
+
+-----
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-get-token-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property name="bpe-bankingengine-utilities-get-token-seq" value="Get token sequence started"/>
+    </log>
+    <property name="grantType" scope="default" type="STRING" value="password"/>
+    <filter regex="POSTPAID" source="$ctx:customerType" xmlns:ns="http://org.apache.synapse/xsd">
+        <then>
+            <property
+                expression="wso2:vault-lookup('uganda.umeme.billpay.auth.postpaid.collectioncenter')"
+                name="umemeCollectionCenter" scope="default" type="STRING"/>
+            <property
+                expression="wso2:vault-lookup('uganda.umeme.billpay.auth.postpaid.scope')"
+                name="scope" scope="default" type="STRING"/>
+            <property
+                expression="wso2:vault-lookup('uganda.umeme.billpay.auth.postpaid.password')"
+                name="password" scope="default" type="STRING"/>
+            <payloadFactory media-type="xml">
+                <format>
+                    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+                        <soapenv:Body>
+                            <root xmlns="">
+                                <username>$1</username>
+                                <password>$2</password>
+                                <grant_type>$3</grant_type>
+                                <scope>$4</scope>
+                            </root>
+                        </soapenv:Body>
+                    </soapenv:Envelope>
+                </format>
+                <args>
+                    <arg evaluator="xml"
+                        expression="$ctx:umemeCollectionCenter" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:password" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:grantType" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:scope" literal="false"/>
+                </args>
+            </payloadFactory>
+            <property
+                expression="wso2:vault-lookup('uganda.umeme.billpay.postpaid.auth.token')"
+                name="authToken" scope="default" type="STRING"/>
+            <header expression="fn:concat('Basic ', $ctx:authToken)"
+                name="Authorization" scope="transport"/>
+        </then>
+        <else>
+            <property name="scope" scope="default" type="STRING" value="token_public token_private ststoken_public"/>
+            <payloadFactory media-type="xml">
+                <format>
+                    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+                        <soapenv:Body>
+                            <root xmlns="">
+                                <username>$1#$2</username>
+                                <password>$3</password>
+                                <grant_type>$4</grant_type>
+                                <scope>$5</scope>
+                            </root>
+                        </soapenv:Body>
+                    </soapenv:Envelope>
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="$ctx:vendorId" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:username" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:password" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:grantType" literal="false"/>
+                    <arg evaluator="xml" expression="$ctx:scope" literal="false"/>
+                </args>
+            </payloadFactory>
+            <property
+                expression="wso2:vault-lookup('uganda.umeme.billpay.prepaid.auth.token')"
+                name="authToken" scope="default" type="STRING"/>
+            <header expression="fn:concat('Basic ', $ctx:authToken)"
+                name="Authorization" scope="transport"/>
+        </else>
+    </filter>
+    <log level="full">
+        <property name="bpe-bankingengine-utilities-get-token-seq" value="payload..."/>
+    </log>
+    <property expression="fn:concat($ctx:umemeBaseUrl, '/token')"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/x-www-form-urlencoded"/>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/x-www-form-urlencoded"/>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="RESPONSE" scope="default" type="STRING" value="true"/>
+    <property expression="json-eval($.access_token)" name="accessToken"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <cache collector="true"/>
+    <enrich>
+        <source clone="false" property="incomingPayload" type="property"/>
+        <target action="replace" type="body"/>
+    </enrich>
+    <log level="full"/>
+</sequence>
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-postpaid-make-payment-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property
+            name="bpe-bankingengine-utilities-postpaid-make-payment-seq" value="bpe-bankingengine-utilities postpaid make payment seq started"/>
+    </log>
+    <property name="HTTP_METHOD" scope="axis2" type="STRING" value="POST"/>
+    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+    <property name="DISABLE_CHUNKING" scope="axis2" type="STRING" value="true"/>
+    <property
+        expression="fn:concat($ctx:umemeBaseUrl, '/payments/1.0.1/externalPayment')"
+        name="uri.var.umemeBillpayUrl" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="$ctx:umemeCollectionCenter"
+        name="X-Incms-Origin-D" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <header expression="fn:concat('Bearer ', $ctx:accessToken)"
+        name="Authorization" scope="transport" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="get-property('SYSTEM_TIME')"
+        name="paymentDate" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property
+        expression="fn:substring-after(get-property('MessageID'), 'urn:uuid:')"
+        name="transactionId" scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <payloadFactory media-type="json">
+        <format>
+			{
+			  "paymentDate": "$1",
+			  "collectionReference": "$2",
+			  "amount": $3,
+			  "currency": "$4",
+			  "transactionId": "$5",
+			  "paymentCenter": "$6",
+              "phoneNumber": "$7"
+			}
+		</format>
+        <args>
+            <arg evaluator="xml" expression="$ctx:paymentDate"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:accountReference"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:amount"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:currencyIsoCode"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:transactionId"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:umemeCollectionCenter"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+            <arg evaluator="xml" expression="$ctx:newPhoneNumber"
+                literal="false" xmlns:ns="http://org.apache.synapse/xsd"/>
+        </args>
+    </payloadFactory>
+    <call>
+        <endpoint>
+            <http uri-template="{uri.var.umemeBillpayUrl}">
+                <timeout>
+                    <duration>120000</duration>
+                    <responseAction>fault</responseAction>
+                </timeout>
+                <suspendOnFailure>
+                    <errorCodes>-1</errorCodes>
+                    <initialDuration>0</initialDuration>
+                    <progressionFactor>1.0</progressionFactor>
+                    <maximumDuration>0</maximumDuration>
+                </suspendOnFailure>
+                <markForSuspension>
+                    <errorCodes>-1</errorCodes>
+                </markForSuspension>
+            </http>
+        </endpoint>
+    </call>
+    <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+    <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+    <filter regex="200" source="$axis2:HTTP_SC" xmlns:ns="http://org.apache.synapse/xsd">
+        <then>
+            <property expression="json-eval($.data.collectionStatus)"
+                name="collectionStatus" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.accountBalance)"
+                name="accountBalance" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.collectionId)"
+                name="collectionId" scope="default" type="STRING"/>
+            <property expression="json-eval($.data.confirmationMessage)"
+                name="confirmationMessage" scope="default" type="STRING"/>
+            <property name="ContentType" scope="axis2" type="STRING" value="application/json"/>
+            <property name="messageType" scope="axis2" type="STRING" value="application/json"/>
+            <payloadFactory media-type="json">
+                <format>
+                    {
+                        "statusCode": 200,
+                        "statusMessage": "success",
+                        "data": {
+                            "ReceiptNumber": "$1",
+                            "StatusCode": "$2",
+                            "StatusDescription": "$3"
+                        }
+                    }
+                </format>
+                <args>
+                    <arg evaluator="xml" expression="$ctx:collectionId" literal="false"/>
+                    <arg literal="false" value="0"/>
+                    <arg literal="false" value="SUCCESS"/>
+                </args>
+            </payloadFactory>
+        </then>
+        <else>
+            <log level="full">
+                <property
+                    name="bpe-bankingengine-utilities-get-sts-token-seq" value="failed to make postpaid payment"/>
+            </log>
+            <respond/>
+        </else>
+    </filter>
+    <log level="custom">
+        <property
+            name="bpe-bankingengine-utilities-postpaid-make-payment-seq" value="bpe-bankingengine-utilities postpaid make payment seq completed"/>
+    </log>
+</sequence>
+
+
+-----
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-vend-in-flow-seq" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property
+            name="bpe-bankingengine-utilities-vend-prepaid-in-flow-seq" value="bpe-bankingengine-utilities vend in flow seq started"/>
+    </log>
+    <enrich>
+        <source clone="false" type="body"/>
+        <target action="replace" property="incomingPayload" type="property"/>
+    </enrich>
+    <filter xmlns:ns="http://org.apache.synapse/xsd" xpath="$trp:x-country!=''">
+        <then>
+            <property expression="fn:lower-case($trp:x-country)"
+                name="country" scope="default" type="STRING"/>
+        </then>
+        <else>
+            <property expression="fn:lower-case($url:country)"
+                name="country" scope="default" type="STRING"/>
+        </else>
+    </filter>
+    <sequence key="gov:/com/cestasoft/bankingengine/esb/services/bpe-bankingengine-utilities/v1/sequences/bpe-bankingengine-utilities-init-seq.xml"/>
+    <sequence key="bpe-bankingengine-utilities-vend-process-request-seq"/>
+</sequence>
+
+----
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+<sequence name="bpe-bankingengine-utilities-vend-process-request-seq"
+    onError="gov:/com/cestasoft/bankingengine/esb/services/bpe-bankingengine-utilities/v1/sequences/bpe-bankingengine-utilities-fault-seq.xml" xmlns="http://ws.apache.org/ns/synapse">
+    <log level="custom">
+        <property expression="$body/*"
+            name="bpe-bankingengine-utilities-vend-process-request-seq" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
+    <enrich>
+        <source clone="false" type="body"/>
+        <target action="replace" property="incomingPayload" type="property"/>
+    </enrich>
+    <log level="custom">
+        <property expression="$body/*"
+            name="bpe-bankingengine-utilities-vend-process-request-seq" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
+    <property name="umeme_user_name" scope="default" type="STRING" value="aao_umeme"/>
+    <property name="umeme_api_key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNjExMzEyMDUzIiwibmFtZSI6ImFic2F1Z2FuZGEiLCJpYXQiOjE3MzA5NjY4NDV9.8B6aYY-FYRfqxAGjnHbMfp26DjTRte0lINYkR4cLBYE"/>
+    <property expression="json-eval($.api_user)" name="api_user"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <property expression="json-eval($.api_key)" name="api_key"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <filter regex="aao_umeme" source="get-property('api_user')" xmlns:ns="http://org.apache.synapse/xsd">
+        <then>
+            <filter
+                regex="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNjExMzEyMDUzIiwibmFtZSI6ImFic2F1Z2FuZGEiLCJpYXQiOjE3MzA5NjY4NDV9.8B6aYY-FYRfqxAGjnHbMfp26DjTRte0lINYkR4cLBYE" source="get-property('api_key')">
+                <then>
+                    <log level="custom">
+                        <property name="Validation" value="Credentials are valid"/>
+                    </log>
+                    <property expression="json-eval($.method)"
+                        name="requestMethod" scope="default" type="STRING"/>
+                    <log level="custom">
+                        <property expression="$ctx:requestMethod" name="requestMethod"/>
+                    </log>
+                    <switch source="$ctx:requestMethod">
+                        <case regex="verify">
+                            <property name="customerType"
+                                scope="default" type="STRING" value="PREPAID"/>
+                            <sequence key="bpe-bankingengine-utilities-get-token-seq"/>
+                            <sequence key="bpe-bankingengine-utilities-customer-search-seq"/>
+                        </case>
+                        <case regex="notify">
+                            <property
+                                expression="json-eval($.data.mobile_no)"
+                                name="phoneNumber" scope="default" type="STRING"/>
+                            <script language="js"><![CDATA[var log = mc.getServiceLog();
+                                var phoneNumber = mc.getProperty('phoneNumber');
+                                // var newPhoneNumber = phoneNumber.replace(/^0/, '256');
+                                var lastPhoneNumberSlice = phoneNumber.slice(1, 10);
+                                var newPhoneNumber = "256" + lastPhoneNumberSlice;
+
+                                log.info(newPhoneNumber);
+                                mc.setProperty('newPhoneNumber', newPhoneNumber.toString());]]></script>
+                            <log level="custom">
+                                <property
+                                    expression="$ctx:newPhoneNumber" name="newPhoneNumber"/>
+                            </log>
+                            <property
+                                expression="json-eval($.data.transaction_ref)"
+                                name="transactionReference"
+                                scope="default" type="STRING"/>
+                            <log level="custom">
+                                <property
+                                    expression="$ctx:transactionReference" name="transactionReference"/>
+                            </log>
+                            <property
+                                expression="json-eval($.data.customer_type)"
+                                name="customerType" scope="default" type="STRING"/>
+                            <sequence key="bpe-bankingengine-utilities-get-token-seq"/>
+                            <switch source="get-property('customerType')">
+                                <case regex="PREPAID|NEWCONNECTION">
+                                    <sequence key="bpe-bankingengine-utilities-calculate-payment-seq"/>
+                                    <sequence key="bpe-bankingengine-utilities-apply-payment-seq"/>
+                                    <sequence key="bpe-bankingengine-utilities-get-sts-token-seq"/>
+                                </case>
+                                <case regex="POSTPAID">
+                                    <sequence key="bpe-bankingengine-utilities-postpaid-get-account-balance-seq"/>
+                                    <sequence key="bpe-bankingengine-utilities-postpaid-make-payment-seq"/>
+                                </case>
+                                <default>
+                                    <log level="full">
+                                    <property name="ERROR" value="Unsupported operation"/>
+                                    </log>
+                                </default>
+                            </switch>
+                        </case>
+                        <default>
+                            <log level="full">
+                                <property name="ERROR" value="Unsupported operation"/>
+                            </log>
+                        </default>
+                    </switch>
+                    <respond/>
+                </then>
+                <else>
+                    <log level="full">
+                        <property name="Validation" value="Invalid password"/>
+                    </log>
+                    <property name="HTTP_SC" scope="axis2" type="STRING" value="403"/>
+                    <property name="NO_ENTITY_BODY" scope="axis2"
+                        type="BOOLEAN" value="true"/>
+                    <respond/>
+                </else>
+            </filter>
+        </then>
+        <else>
+            <log level="full">
+                <property name="Validation" value="Invalid username"/>
+            </log>
+            <property name="HTTP_SC" scope="axis2" type="STRING" value="403"/>
+            <property name="NO_ENTITY_BODY" scope="axis2" type="BOOLEAN" value="true"/>
+            <respond/>
+        </else>
+    </filter>
+</sequence>
+
+
+
 working requests
 
 {
