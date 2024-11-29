@@ -1,1 +1,5 @@
-test
+<property expression="json-eval($.data[0].units)" name="units"
+        scope="default" type="STRING" xmlns:ns="http://org.apache.synapse/xsd"/>
+    <log level="custom">
+        <property expression="$ctx:units" name="unit" xmlns:ns="http://org.apache.synapse/xsd"/>
+    </log>
